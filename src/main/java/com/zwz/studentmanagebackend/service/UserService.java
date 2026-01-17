@@ -2,6 +2,7 @@ package com.zwz.studentmanagebackend.service;
 
 import com.zwz.studentmanagebackend.dto.UserDTO;
 import com.zwz.studentmanagebackend.entity.User;
+import com.zwz.studentmanagebackend.repository.StudentRepository;
 import com.zwz.studentmanagebackend.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -15,6 +16,9 @@ public class UserService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private StudentRepository studentRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -49,12 +53,24 @@ public class UserService {
 
         User savedUser = userRepository.save(user);
 
+        // 如果是学生角色，检查是否已有学生信息
+        if ("STUDENT".equals(userDTO.getRole())) {
+            try {
+                // 检查是否已存在该学号的学生
+                if (!studentRepository.findByStudentNo(userDTO.getUsername()).isPresent()) {
+                    System.out.println("提示：已创建学生账户 " + userDTO.getUsername() +
+                            "，但对应的学生信息需要单独创建");
+                }
+            } catch (Exception e) {
+                // 忽略错误
+            }
+        }
+
         // 发送Kafka消息
         kafkaService.sendUserEvent("user.created", savedUser.getUsername());
 
         return savedUser;
     }
-
     public User updateUser(Long id, UserDTO userDTO) {
         User user = getUserById(id);
         user.setEmail(userDTO.getEmail());
