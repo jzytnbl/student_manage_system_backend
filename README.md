@@ -91,6 +91,7 @@
 
 | 方法 | 路径 | 描述 | 权限 | 限流 |
 |------|------|------|------|------|
+| POST | `/register` | 用户注册 | 所有人 | 10次/分钟/IP |
 | POST | `/login` | 用户登录 | 所有人 | 10次/分钟/IP |
 | POST | `/logout` | 用户登出 | 已认证用户 | 100次/分钟/IP |
 | GET | `/profile` | 获取当前用户信息 | 已认证用户 | 100次/分钟/IP |
@@ -224,6 +225,38 @@
 | MySQL | 8.0+ | 数据库 |
 | Redis | 6.0+ | 缓存服务 |
 | Kafka | 2.8+ | 消息队列(可选) |
+1.2 Kafka安装配置
+1.2.1 下载Kafka
+访问 https://kafka.apache.org/downloads 下载最新版。
+
+推荐版本：
+
+kafka_2.12-3.6.0.tgz（Scala 2.12）
+
+kafka_2.13-3.6.0.tgz（Scala 2.13）
+
+1.2.2 解压安装
+
+1.2.3 启动Kafka
+Windows：
+cmd
+ 打开两个命令提示符窗口
+ 窗口1 - 启动Zookeeper：
+ 
+cd C:\你的路径\kafka_2.12-3.6.0
+
+bin\windows\zookeeper-server-start.bat config\zookeeper.properties
+
+ 窗口2 - 启动Kafka：
+cd C:\你的路径\kafka_2.12-3.6.0
+
+bin\windows\kafka-server-start.bat config\server.properties
+
+1.3 Redis下载
+
+下载Redis for Windows：
+
+访问：https://github.com/microsoftarchive/redis/releases下载 Redis-x64-3.2.100.msi 或最新版本，安装后，Redis会自动作为服务启动
 
 ### 2. 部署步骤
 
