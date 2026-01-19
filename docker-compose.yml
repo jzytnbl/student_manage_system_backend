@@ -1,54 +1,163 @@
 version: '3.8'
 
 services:
+  # MySQL数据库
   mysql:
     image: mysql:8.0
+    container_name: student-mysql
     environment:
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: student_db
+      MYSQL_USER: student_user
+      MYSQL_PASSWORD: student_pass
     ports:
-      - "3306:3306"
+      - "3307:3306"  # 主机端口改为3307，避免与本地3306冲突
     volumes:
       - mysql-data:/var/lib/mysql
+#      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # 初始化脚本
+    networks:
+      - student-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
+  # Redis缓存
   redis:
     image: redis:7-alpine
+    container_name: student-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"  # 主机端口改为6380，避免与本地6379冲突
     volumes:
       - redis-data:/data
+    networks:
+      - student-network
+    command: redis-server --appendonly yes --requirepass redis123  # 设置密码
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: student-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2182:2181"  # 主机端口改为2182
+    networks:
+      - student-network
+
+  # Kafka消息队列
   kafka:
     image: confluentinc/cp-kafka:7.3.0
+    container_name: student-kafka
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093  # 外部访问端口9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9092:9092"
+      - "9093:9092"  # 主机端口改为9093
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - student-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-
+  # Spring Boot应用
   student-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: student-backend
     depends_on:
-      - mysql
-      - redis
-      - kafka
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/student_db
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/student_db?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: 123456
+
+      # Redis配置
       SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: redis123  # 如果redis设置了密码
+
+      # Kafka配置
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      # JWT配置
+      JWT_SECRET: student-secret-key-docker
+      JWT_EXPIRATION: 3600000
+
+      # 应用配置
+      SERVER_PORT: 8080
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
     ports:
       - "8080:8080"
+    networks:
+      - student-network
+    volumes:
+      - ./logs:/app/logs  # 挂载日志目录
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/auth/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 可选：phpMyAdmin（数据库管理）
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: student-phpmyadmin
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    ports:
+      - "8081:80"
+    networks:
+      - student-network
+
+  # 可选：Redis Commander（Redis管理）
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: student-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8082:8081"
+    networks:
+      - student-network
 
 volumes:
   mysql-data:
+    driver: local
   redis-data:
+    driver: local
+  kafka-data:
+    driver: local
+
+networks:
+  student-network:
+    driver: bridge
