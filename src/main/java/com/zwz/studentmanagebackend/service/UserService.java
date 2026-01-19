@@ -39,6 +39,11 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
 
+    public User findByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElse(null);
+    }
+
     public User createUser(UserDTO userDTO) {
         if (userRepository.existsByUsername(userDTO.getUsername())) {
             throw new RuntimeException("用户名已存在");
