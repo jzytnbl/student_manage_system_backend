@@ -1,42 +1,70 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8088}
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/student_db?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/student_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:jzy050527}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
 
   redis:
-    host: localhost
-    port: 6379
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    password: ${SPRING_REDIS_PASSWORD:}
+    database: 0
     timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       retries: 3
       acks: 1
+      properties:
+        request.timeout.ms: 30000
     consumer:
       group-id: student-manage-group
       auto-offset-reset: earliest
       enable-auto-commit: true
       auto-commit-interval: 1000
-    template:
-      default-topic: student-events
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.zwz.studentmanagebackend.entity
 
+logging:
+  level:
+    com.zwz.studentmanagebackend: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+  file:
+    name: /app/logs/student-manage.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
 jwt:
-  secret: student-secret-key
-  expiration: 3600000
+  secret: ${JWT_SECRET:student-secret-key}
+  expiration: ${JWT_EXPIRATION:3600000}
